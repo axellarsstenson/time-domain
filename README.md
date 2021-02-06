@@ -3,7 +3,7 @@
 
 The TimeDomainRecord class extends the View class used in Android Applications. It is used to dynamically display audio data during the recording process. The amplitude over time graph is displayed in 5 second intervals and will clear at the end of the 5 seconds.
 
-# How it works (Overview)
+# How it works
 
 For an Android application, audio can be recorded with an AudioRecord object. This object can record PCM audio using a buffer and store that raw audio data in a .pcm file. During the part of the recording process where the data is being read from the buffer and output to the file, we will also send a sample average of that data to the TimeDomainRecord object to analyze and display in real time.
 
@@ -15,7 +15,9 @@ If the recording stops, we stop and reset the display of the data on the TimeDom
 
 PCM Audio is the backbone of the TimeDomainRecord object and it's worth taking some time to understand it if the you do not already.
 
-PCM stands for Pulse Code Modulation and is a format for encoding an audio waveform in the time domain as a series of amplitudes. There are many different formats that can be used to change the percision of the recording, but for our purposes we will be discussing Single Channel (Mono), 16-Bit PCM Audio, recorded at a Sample Rate of 44100Hz. The reason for this is that this is relatively simple to understand but still gives us a high precision audio recording.
+PCM stands for Pulse Code Modulation and is a format for encoding an audio waveform in the time domain as a series of amplitudes. In laymans terms, this means that the values stored represent loudness, while the length of the file is equal to the length of the recording. 
+
+There are many different formats that can be used to change the percision of the recording, but for our purposes we will be discussing Single Channel (Mono), 16-Bit PCM Audio, recorded at a Sample Rate of 44100Hz. The reason for this is that this is relatively simple to understand but still gives us a high precision audio recording.
 
 To create the AudioRecord object we use:
 
@@ -41,7 +43,7 @@ We can get the length of the minimum buffer needed to record audio by using:
 
 `int minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_IN_CONFIG, ENCODING_TYPE);`
 
-This will be the size of our buffer and represents the number of samples that will be added to the buffer before recording them to the .pcm file.
+This will be the size of our buffer and represents the number of samples that will be added to the buffer before recording them to the .pcm file. This size is given to us by the AudioRecord object, and in our case the buffer size is 3528.
 
 The **total memory** used for a recording depends on three different options, mentioned above, and can be calculated as follows:
 
@@ -86,24 +88,37 @@ After filling a buffer's worth of data we need to write that data to a file. All
 
 to write each short into the file.
 
-**Sending Data to TimeDomainRecord*
+**Sending Data to TimeDomainRecord**
 
-`for (shortsWritten = 0; shorts < numberofShortsRead; shortsWritten++) {
+Since the percision of the recording we are doing is so high (44100 samples per second), we will need to create an average value for some period that will be used to display that period's average amplitude on our graph.
+
+To do this, we include an averaging function in the `for` loop that loops through the buffer:
+
+```
+double sum = 0;
+
+for (shortsWritten = 0; shorts < numberofShortsRead; shortsWritten++) {
    dataOutputStream.writeShort(audioData[i]);
    sum += audioData[i] * audioData[i];
 
    if (numberOfShortRead > 0) {
      final double amplitude = sum / shortsDividedByFour;
      squareAmp = (float) Math.sqrt(amplitude);
-     timeDomain.addLine(squareAmp);
+     timeDomainRecord.addLine(squareAmp);
      }
 
      sum = 0;
-}`
+}
+```
 
-Since this is to be used in a Mobile app, we will have a variety of different display sizes. In order to calculate the number of vertical amplitude bars that will fit within our display we will need to get the viewWidth. Hypothetically, lets say our device has a width of 500. While we can theoretically display 500 vertical bars, we are restricted in percision by the size of our buffer. We can actually display a number of vertical bars equal to (sampleRate/minBufferSize * numberOfSeconds), unless we were to 
+This will average the amplitude over a period of time equal to the Sample Rate / minBufferSize and then add that to the TimeDomainRecord view. As we mentioned above, our buffer is of size 3528 and our sample rate is 44100, so we get 12.5 lines per second. 1 line is equal to 0.08 seconds.
 
+Since this is to be used in a Mobile app, we will have a variety of different display sizes. In order to calculate the width of vertical amplitude bars that will fit within our display we will need to get the viewWidth. Hypothetically, lets say our device has a width of 500. While we can theoretically display 500 vertical bars, we are restricted in percision by the size of our buffer. We can actually display a number of vertical bars equal to sampleRate/minBufferSize * numberOfSeconds which is 12.5 * 5 = 62.5 or 62. We have 62 bars and a widget of 500, so each bar will be 500/62 = 8 across.
 
- 
+We could make this more percise by averaging and sending parts of the buffer, instead of the whole thing, but the intent of this exercise is to stay simple for ease of understanding.
+
+Since the AudioRecord object returns the same value for minBufferSize if the variables entered are the same, we have run these calculations inside of our View as well. This means that we have set our AmplitudePaint to size = 8, and created the Short array with the correct size of 62.
+
+Once data has been added to the Short array inside the TimeDomainRecord object, we call invalidate() from inside the View, which forces the View to be redrawn, and the amplitude graph bar will be drawn, now with a non-zero value for the first column.
 
  
